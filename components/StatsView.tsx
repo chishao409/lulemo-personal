@@ -1,8 +1,10 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import { RecordEntry } from '../types';
 import { getLocalDateString } from '../constants';
 import FaIcon from './FaIcon';
+import PeriodStats from './PeriodStats';
+import { getYearStatistics, validStatisticsRecords } from '../utils/statistics';
 
 interface Props {
   records: RecordEntry[];
@@ -21,27 +23,24 @@ function getHeatColor(level: number, darkMode: boolean): string {
 
 type HeatmapMode = 'year' | 'month';
 
-const StatsView: React.FC<Props> = ({ records, darkMode }) => {
+const StatsView: React.FC<Props> = ({ records: allRecords, darkMode }) => {
+  const [nowMs, setNowMs] = useState(Date.now);
+  useEffect(() => {
+    const refresh = () => setNowMs(Date.now());
+    const interval = window.setInterval(refresh, 60000);
+    document.addEventListener('visibilitychange', refresh);
+    return () => { window.clearInterval(interval); document.removeEventListener('visibilitychange', refresh); };
+  }, []);
+  const records = useMemo(() => validStatisticsRecords(allRecords, nowMs), [allRecords, nowMs]);
   const [heatTooltip, setHeatTooltip] = useState<{ text: string; x: number; y: number } | null>(null);
   const [heatmapMode, setHeatmapMode] = useState<HeatmapMode>('year');
-  const now = new Date();
+  const now = new Date(nowMs);
   const [heatmapViewYear, setHeatmapViewYear] = useState(now.getFullYear());
   const [heatmapViewMonth, setHeatmapViewMonth] = useState(now.getMonth());
 
-  const statsData = useMemo(() => {
-    const months = ["1月", "2月", "3月", "4月", "5月", "6月", "7月", "8月", "9月", "10月", "11月", "12月"];
-    const currentYear = new Date().getFullYear();
-    
-    return months.map((m, index) => {
-      const count = records.filter(r => {
-        const d = new Date(r.timestamp);
-        return d.getMonth() === index && d.getFullYear() === currentYear;
-      }).length;
-      return { name: m, count };
-    });
-  }, [records]);
-
-  const currentYear = new Date().getFullYear();
+  const currentYear = now.getFullYear();
+  const annual = useMemo(() => getYearStatistics(records, currentYear, nowMs), [records, currentYear, nowMs]);
+  const statsData = annual.months;
 
   /** 全量按日聚合，供年/月视图共用 */
   const heatmapDataAll = useMemo(() => {
@@ -102,8 +101,8 @@ const StatsView: React.FC<Props> = ({ records, darkMode }) => {
     return { cells, daysInMonth };
   }, [heatmapDataAll, heatmapViewYear, heatmapViewMonth]);
 
-  const totalCount = records.length;
-  const avgMonthly = (totalCount / 12).toFixed(1);
+  const totalCount = annual.count;
+  const avgMonthly = annual.monthlyAverage.toFixed(1);
 
   const quotes = [
     "保持节奏，🦌加油！", 
@@ -139,9 +138,10 @@ const StatsView: React.FC<Props> = ({ records, darkMode }) => {
 
   return (
     <div className="p-4 space-y-6">
+      <PeriodStats records={records} darkMode={darkMode} now={nowMs} />
       <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-md p-6 rounded-3xl shadow-sm border border-green-100 dark:border-slate-800">
         <h3 className="text-xl font-bold text-green-800 dark:text-green-400 mb-4 flex items-center gap-2">
-          <FaIcon name="chart-line" /> 年度趋势 ({new Date().getFullYear()})
+          <FaIcon name="chart-line" /> 年度趋势 ({currentYear})
         </h3>
         {/* 修复：外层包裹 div 设置 overflow hidden 和最小高度，帮助 Recharts 正确计算尺寸 */}
         <div className="h-64 w-full min-w-0 overflow-hidden" style={{ minHeight: '256px' }}>
@@ -187,7 +187,7 @@ const StatsView: React.FC<Props> = ({ records, darkMode }) => {
           <div className="text-[10px] mt-1 font-bold">次</div>
         </div>
         <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-green-100 dark:border-slate-800 shadow-sm">
-          <div className="text-xs text-gray-500 dark:text-slate-400 mb-1">月平均</div>
+          <div className="text-xs text-gray-500 dark:text-slate-400 mb-1">全年月平均（按12个月）</div>
           <div className="text-3xl font-black text-green-800 dark:text-green-400">{avgMonthly}</div>
           <div className="text-[10px] text-green-600 dark:text-green-500 font-bold mt-1">次/月</div>
         </div>

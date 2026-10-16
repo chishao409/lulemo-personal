@@ -1295,7 +1295,7 @@ const SettingsView: React.FC<Props> = ({
             <h4 className="font-bold text-green-900 dark:text-green-400 mb-1">关于鹿了么</h4>
             <p className="text-xs text-green-800/60 dark:text-green-400/40 mb-4">
               <a href="https://github.com/chishao409/lulemo-personal" target="_blank" rel="noopener noreferrer" className="font-semibold hover:text-green-700 dark:hover:text-green-300 transition-colors">
-                版本 1.7.0-private.1
+                版本 1.8.0-private.1
               </a>
             </p>
             <p className="mb-3 text-xs text-green-800/80 dark:text-green-400/70"><a href="https://github.com/mengkuikun/luleme-app" target="_blank" rel="noopener noreferrer" className="underline underline-offset-4">原作者 mengkuikun 与原项目贡献者 · MIT</a></p>

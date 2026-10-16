@@ -1,7 +1,7 @@
 {
   "name": "lulemo",
   "private": true,
-  "version": "1.7.0-private.1",
+  "version": "1.8.0-private.1",
   "type": "module",
   "scripts": {
     "dev": "vite",
