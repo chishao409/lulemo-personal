@@ -1,5 +1,11 @@
 apply plugin: 'com.android.application'
 
+def privateSigningFile = rootProject.file('keystore.properties')
+def privateSigning = new Properties()
+if (privateSigningFile.exists()) {
+    privateSigningFile.withInputStream { privateSigning.load(it) }
+}
+
 android {
     namespace = "com.lulemo.app"
     compileSdk = rootProject.ext.compileSdkVersion
@@ -11,8 +17,8 @@ android {
         applicationId "com.lulemo.app"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 9
-        versionName "1.6.3"
+        versionCode 10
+        versionName "1.7.0-private.1"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
@@ -20,10 +26,29 @@ android {
             ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
+    signingConfigs {
+        privateRelease {
+            if (privateSigningFile.exists()) {
+                storeFile file(privateSigning['storeFile'])
+                storePassword privateSigning['storePassword']
+                keyAlias privateSigning['keyAlias']
+                keyPassword privateSigning['keyPassword']
+            }
+        }
+    }
     buildTypes {
         release {
+            signingConfig signingConfigs.privateRelease
             minifyEnabled true
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+        }
+    }
+}
+
+tasks.matching { it.name == 'preReleaseBuild' }.configureEach {
+    doFirst {
+        if (!privateSigningFile.exists()) {
+            throw new GradleException('Run scripts/prepare-signing.ps1 before building a private release.')
         }
     }
 }

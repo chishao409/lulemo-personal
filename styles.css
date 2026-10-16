@@ -305,3 +305,7 @@
     will-change: transform, opacity, filter;
   }
 }
+/* The dashboard provides record controls on short screens; avoid covering them. */
+@media (max-height: 740px) {
+  .quick-punch-control { display: none; }
+}

@@ -2,13 +2,17 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { RecordEntry, RecordEntryDraft } from '../types';
 import FaIcon from './FaIcon';
 import { getDetailPaneSurfaceClass, getDetailSheetSurfaceClass, getDetailViewportBaseClass } from '../utils/detailModalSurface';
+import { formatElapsed, getRecordInterval, resolveDraftTimestamp, toLocalDateTimeInput } from '../utils/habits';
 
 interface Props {
   date: string;
   records: RecordEntry[];
+  allRecords?: RecordEntry[];
+  initialDraft?: RecordEntryDraft;
   onClose: () => void;
   onDelete: (id: string) => void;
   onAdd: (draft: RecordEntryDraft) => boolean;
+  onUpdate?: (id: string, draft: RecordEntryDraft) => boolean;
   darkMode?: boolean;
   initialAddMode?: boolean;
 }
@@ -27,11 +31,14 @@ const MOVIE_CATEGORY_OPTIONS = ['日韩', '欧美', '国产', '动漫', '其他'
 const DETAIL_MODAL_EXIT_MS = 220;
 const DETAIL_MODAL_TOP_GAP_PX = 12;
 
-const DetailModal: React.FC<Props> = ({ date, records, onClose, onDelete, onAdd, darkMode, initialAddMode }) => {
+const DetailModal: React.FC<Props> = ({ date, records, allRecords = records, initialDraft, onClose, onDelete, onAdd, onUpdate, darkMode, initialAddMode }) => {
   const [isAdding, setIsAdding] = useState(initialAddMode || false);
   const [selectedMood, setSelectedMood] = useState('放松');
   const [note, setNote] = useState('');
-  const [durationInput, setDurationInput] = useState('');
+  const [durationInput, setDurationInput] = useState(initialDraft?.durationMinutes == null ? '' : String(initialDraft.durationMinutes));
+  const [timestamp, setTimestamp] = useState(initialDraft?.timestamp ?? resolveDraftTimestamp({ date }));
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [formError, setFormError] = useState('');
   const [watchedMovie, setWatchedMovie] = useState(false);
   const [movieCategory, setMovieCategory] = useState<(typeof MOVIE_CATEGORY_OPTIONS)[number]>('日韩');
   const [customMovieCategory, setCustomMovieCategory] = useState('');
@@ -64,25 +71,31 @@ const DetailModal: React.FC<Props> = ({ date, records, onClose, onDelete, onAdd,
     const parsedDuration = Number(durationInput.trim());
     const durationMinutes =
       durationInput.trim() && Number.isFinite(parsedDuration) && parsedDuration > 0
-        ? Math.round(parsedDuration)
+        ? parsedDuration
         : undefined;
+    if (!Number.isFinite(timestamp) || timestamp > Date.now()) { setFormError('请选择有效的发生时间，不能晚于现在'); return; }
+    if (durationInput.trim() && durationMinutes == null) { setFormError('时长请填写大于 0 的数字，或留空'); return; }
     const resolvedMovieCategory = watchedMovie
       ? movieCategory === '自定义'
         ? customMovieCategory.trim() || '自定义'
         : movieCategory
       : undefined;
 
-    const added = onAdd({
+    const draft: RecordEntryDraft = {
+      timestamp,
       date,
       mood: selectedMood,
       note,
       durationMinutes,
       watchedMovie,
       movieCategory: resolvedMovieCategory,
-    });
+    };
+    const added = editingId && onUpdate ? onUpdate(editingId, draft) : onAdd(draft);
     if (!added) return;
 
     setIsAdding(false);
+    setEditingId(null);
+    setFormError('');
     setNote('');
     setDurationInput('');
     setWatchedMovie(false);
@@ -92,6 +105,24 @@ const DetailModal: React.FC<Props> = ({ date, records, onClose, onDelete, onAdd,
     if (initialAddMode) {
       requestClose();
     }
+  };
+
+  const startAdd = () => {
+    setEditingId(null); setTimestamp(resolveDraftTimestamp({ date }));
+    setSelectedMood('放松'); setNote(''); setDurationInput('');
+    setWatchedMovie(false); setMovieCategory('日韩'); setCustomMovieCategory('');
+    setFormError(''); setIsAdding(true);
+  };
+
+  const startEdit = (record: RecordEntry) => {
+    setEditingId(record.id); setTimestamp(record.timestamp);
+    setSelectedMood(record.mood || '放松'); setNote(record.note || '');
+    setDurationInput(record.durationMinutes == null ? '' : String(record.durationMinutes));
+    setWatchedMovie(record.watchedMovie || false);
+    const known = MOVIE_CATEGORY_OPTIONS.find((category) => category === record.movieCategory);
+    setMovieCategory(known || (record.movieCategory ? '自定义' : '日韩'));
+    setCustomMovieCategory(known ? '' : record.movieCategory || '');
+    setFormError(''); setArmedDeleteId(null); setIsAdding(true);
   };
 
   const animateDelete = (id: string) => {
@@ -175,7 +206,7 @@ const DetailModal: React.FC<Props> = ({ date, records, onClose, onDelete, onAdd,
                     isAdding ? 'translate-x-0 opacity-100' : 'translate-x-3 opacity-0 pointer-events-none'
                   }`}
                 >
-                  记录此下的瞬间
+                  {editingId ? '编辑这条记录' : '记录此下的瞬间'}
                 </p>
               </div>
             </div>
@@ -235,18 +266,20 @@ const DetailModal: React.FC<Props> = ({ date, records, onClose, onDelete, onAdd,
                             <span className="text-[10px] font-bold uppercase tracking-wider text-green-600 dark:text-green-400">
                               心情: {record.mood || '放松'}
                             </span>
-                            {record.durationMinutes != null && (
+                            {record.durationMinutes != null ? (
                               <span className="rounded-full bg-white/80 px-2 py-0.5 text-[10px] font-bold text-gray-500 dark:bg-slate-900/80 dark:text-slate-300">
                                 {record.durationMinutes} 分钟
                               </span>
-                            )}
+                            ) : <span className="text-[10px] text-gray-400">时长未记录</span>}
                             <span className="rounded-full bg-white/80 px-2 py-0.5 text-[10px] font-bold text-gray-500 dark:bg-slate-900/80 dark:text-slate-300">
                               {formatMovieCategory(record)}
                             </span>
                           </div>
                         </div>
                       </div>
+                      {onUpdate && <button type="button" aria-label="编辑记录" onClick={(e) => { e.stopPropagation(); startEdit(record); }} className="min-h-10 shrink-0 px-2 text-xs font-bold text-green-700 dark:text-green-300">编辑</button>}
                       <button
+                        aria-label="确认删除记录"
                         onClick={(e) => {
                           e.stopPropagation();
                           if (armedDeleteId !== record.id) return;
@@ -267,6 +300,9 @@ const DetailModal: React.FC<Props> = ({ date, records, onClose, onDelete, onAdd,
                         再点一次右侧删除按钮，即可删除这条记录
                       </div>
                     )}
+                    <p className="mt-1 text-xs text-gray-500 dark:text-slate-400">
+                      {getRecordInterval(record, allRecords) == null ? '首条记录 · 暂无前次间隔' : `距前次 ${formatElapsed(getRecordInterval(record, allRecords)!)}`}
+                    </p>
                     {record.note && (
                       <div className="mt-1 rounded-xl bg-white/40 p-3 pl-1 text-sm italic text-gray-600 dark:bg-slate-900/40 dark:text-slate-400">
                         "{record.note}"
@@ -287,11 +323,11 @@ const DetailModal: React.FC<Props> = ({ date, records, onClose, onDelete, onAdd,
             <div className={actionBarClass}>
               <div className={actionBarBlendClass} />
               <button
-                onClick={() => setIsAdding(true)}
+                onClick={startAdd}
                 className="group flex w-full items-center justify-center gap-2 rounded-2xl bg-yellow-400 py-4 font-bold text-yellow-900 transition-colors hover:bg-yellow-500 dark:bg-yellow-600 dark:text-yellow-50 dark:hover:bg-yellow-700"
               >
                 <FaIcon name="plus" className="transition-transform group-hover:rotate-90" />
-                补录其它心情
+                补录一条记录
               </button>
             </div>
           </div>
@@ -299,6 +335,9 @@ const DetailModal: React.FC<Props> = ({ date, records, onClose, onDelete, onAdd,
           <div className={addViewClass} aria-hidden={!isAdding}>
             <div className="detail-list-scroll flex-1 overflow-y-auto px-6 py-5 pr-5">
               <div className="space-y-6">
+                <label className="block text-sm font-bold text-gray-600 dark:text-slate-400">发生时间（开始时间）
+                  <input type="datetime-local" aria-label="发生时间" value={Number.isFinite(timestamp) ? toLocalDateTimeInput(timestamp) : ''} max={toLocalDateTimeInput(Date.now())} onInput={(e) => { setTimestamp(new Date(e.currentTarget.value).getTime()); setFormError(''); }} onChange={(e) => { setTimestamp(new Date(e.target.value).getTime()); setFormError(''); }} className="mt-3 block w-full min-w-0 rounded-2xl bg-gray-50 p-4 text-sm text-gray-800 dark:bg-slate-800 dark:text-slate-200" />
+                </label>
                 <div>
                   <label className="mb-3 block text-sm font-bold text-gray-600 dark:text-slate-400">心情怎么样？</label>
                   <div className="grid grid-cols-3 gap-3">
@@ -342,9 +381,10 @@ const DetailModal: React.FC<Props> = ({ date, records, onClose, onDelete, onAdd,
                     </div>
                     <input
                       type="number"
-                      inputMode="numeric"
-                      min="1"
-                      step="1"
+                      aria-label="本次时长（分钟）"
+                      inputMode="decimal"
+                      min="0.001"
+                      step="any"
                       value={durationInput}
                       onChange={(e) => setDurationInput(e.target.value)}
                       placeholder="自定义时长，例如 25"
@@ -432,12 +472,13 @@ const DetailModal: React.FC<Props> = ({ date, records, onClose, onDelete, onAdd,
 
             <div className={actionBarClass}>
               <div className={actionBarBlendClass} />
+              {formError && <p role="alert" className="relative mb-3 text-xs text-red-600 dark:text-red-300">{formError}</p>}
               <button
                 onClick={handleSave}
                 className="flex w-full items-center justify-center gap-2 rounded-2xl bg-green-500 py-4 font-bold text-white transition-colors hover:bg-green-600"
               >
                 <FaIcon name="check" />
-                完成记录
+                {editingId ? '保存修改' : '完成记录'}
               </button>
             </div>
           </div>

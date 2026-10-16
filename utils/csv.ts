@@ -93,12 +93,12 @@ export function parseRecordEntriesFromCsv(text: string): RecordEntry[] {
     const watchedMovieRaw = (columns[7] ?? '').trim().toLowerCase();
     const movieCategory = (columns[8] ?? '').trim();
 
-    if (!id || Number.isNaN(timestamp)) continue;
+    if (!id || !(columns[1] ?? '').trim() || !Number.isFinite(timestamp) || !Number.isFinite(new Date(timestamp).getTime())) continue;
 
     const parsedDuration = Number(durationRaw);
     const durationMinutes =
       durationRaw && Number.isFinite(parsedDuration) && parsedDuration > 0
-        ? Math.round(parsedDuration)
+        ? parsedDuration
         : undefined;
 
     records.push({

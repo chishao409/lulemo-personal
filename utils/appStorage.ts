@@ -22,8 +22,13 @@ import {
 } from '../constants';
 
 import { StorageLike, StorageKeyPair } from './storageMigration';
+import { HABIT_SETTINGS_KEY, SESSION_TIMER_KEY, DAILY_REMINDER_DAYS_KEY, LAST_HEALTH_REMINDER_KEY } from './habits';
 
 export const APP_STORAGE_KEYS = [
+  HABIT_SETTINGS_KEY,
+  SESSION_TIMER_KEY,
+  DAILY_REMINDER_DAYS_KEY,
+  LAST_HEALTH_REMINDER_KEY,
   STORAGE_KEY,
   PIN_KEY,
   THEME_KEY,

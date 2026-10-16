@@ -10,12 +10,35 @@ export interface RecordEntry {
 }
 
 export interface RecordEntryDraft {
+  timestamp?: number;
   date?: string;
   mood?: string;
   note?: string;
   durationMinutes?: number;
   watchedMovie?: boolean;
   movieCategory?: string;
+}
+
+export interface HabitSettings {
+  dailyEnabled: boolean;
+  dailyLimit: number | null;
+  durationEnabled: boolean;
+  minDurationMinutes: number | null;
+  intervalEnabled: boolean;
+  minIntervalHours: number | null;
+  notificationsEnabled: boolean;
+  reminderText: string;
+}
+
+export interface SessionTimer {
+  startedAt: number;
+  stoppedAt?: number;
+}
+
+export interface HealthReminder {
+  kind: 'daily' | 'duration' | 'interval';
+  title: string;
+  message: string;
 }
 
 export interface CustomBackgroundConfig {

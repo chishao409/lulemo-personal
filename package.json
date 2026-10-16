@@ -1,7 +1,7 @@
 {
   "name": "lulemo",
   "private": true,
-  "version": "1.6.3",
+  "version": "1.7.0-private.1",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -18,6 +18,7 @@
     "@capacitor/cli": "^6.2.1",
     "@capacitor/core": "^6.2.1",
     "@capacitor/filesystem": "^6.0.4",
+    "@capacitor/local-notifications": "^6.1.3",
     "@capacitor/share": "^6.0.4",
     "@capgo/capacitor-native-biometric": "^6.0.4",
     "@fortawesome/fontawesome-svg-core": "^7.2.0",

@@ -32,6 +32,10 @@ import DetailModal from './components/DetailModal';
 import LockScreen from './components/LockScreen';
 import ChangeLog from './components/ChangeLog';
 import FaIcon from './components/FaIcon';
+import HabitDashboard from './components/HabitDashboard';
+import HealthReminderDialog from './components/HealthReminderDialog';
+import { useHabitTools } from './hooks/useHabitTools';
+import { getCooldownEnd, resolveDraftTimestamp, timerToDraft } from './utils/habits';
 import { App as CapacitorApp } from '@capacitor/app';
 import { Filesystem, Directory, Encoding } from '@capacitor/filesystem';
 import { Share } from '@capacitor/share';
@@ -199,6 +203,9 @@ const App: React.FC = () => {
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
   const [forceAddMode, setForceAddMode] = useState(false);
+  const [timerDraft, setTimerDraft] = useState<RecordEntryDraft | null>(null);
+  const [timerDraftSource, setTimerDraftSource] = useState<number | null>(null);
+  const [pendingSave, setPendingSave] = useState<{ draft: RecordEntryDraft; editId?: string; timerSource?: number } | null>(null);
   const [stampAnimationDate, setStampAnimationDate] = useState<string | null>(null);
   const [themeMode, setThemeMode] = useState<ThemeMode>('system');
   const [systemPrefersDark, setSystemPrefersDark] = useState(getSystemPrefersDark);
@@ -400,6 +407,14 @@ const App: React.FC = () => {
     );
   }, []);
 
+  const {
+    settings: habitSettings, saveSettings: saveHabitSettings,
+    timer: sessionTimer, startTimer: startSessionTimer, stopTimer: stopSessionTimer, saveTimer: saveSessionTimer,
+    now: habitNow, reminders: habitReminders, setReminders: setHabitReminders,
+    checkReminders: checkHabitReminders, reset: resetHabitTools,
+  } = useHabitTools(showToast);
+  const closeHabitReminders = useCallback(() => setHabitReminders([]), [setHabitReminders]);
+
   useEffect(() => {
     if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return undefined;
 
@@ -440,6 +455,12 @@ const App: React.FC = () => {
   const sageRemainingMs = sageCooldownEndAt ? Math.max(0, sageCooldownEndAt - nowTs) : 0;
   const isSageModeActive = sageModeEnabled && sageRemainingMs > 0;
   const sageCountdownLabel = formatSageCountdown(sageRemainingMs);
+
+  useEffect(() => {
+    if (!isInitialized) return;
+    setSageCooldownEndAt(sageModeEnabled ? getCooldownEnd(records, sageModeDurationMinutes) : null);
+    setNowTs(Date.now());
+  }, [records, sageModeEnabled, sageModeDurationMinutes, isInitialized]);
 
   const handleSageModeEnabledChange = useCallback((enabled: boolean) => {
     setSageModeEnabled(enabled);
@@ -591,47 +612,61 @@ const App: React.FC = () => {
     setShowSplash(false);
   };
 
-  const addRecord = useCallback((draft: RecordEntryDraft = {}): boolean => {
-    if (isSageModeActive) {
-      showToast(`贤者模式中，请等待 ${sageCountdownLabel}`);
-      return false;
+  const saveRecord = useCallback((draft: RecordEntryDraft = {}, editId?: string, timerSource?: number, bypassCooldown = false): boolean => {
+    const current = Date.now();
+    const timestamp = resolveDraftTimestamp(draft, current);
+    if (!Number.isFinite(timestamp) || !Number.isFinite(new Date(timestamp).getTime()) || timestamp > current) {
+      showToast('发生时间无效，或晚于现在'); return false;
     }
-
-    const {
-      date,
-      mood,
-      note,
-      durationMinutes,
-      watchedMovie = false,
-      movieCategory,
-    } = draft;
-    const now = new Date();
-    const targetDate = date ? new Date(date) : now;
-    if (date) {
-      targetDate.setHours(now.getHours(), now.getMinutes(), now.getSeconds(), now.getMilliseconds());
+    if (draft.durationMinutes != null && (!Number.isFinite(draft.durationMinutes) || draft.durationMinutes <= 0)) {
+      showToast('持续时长请填写大于 0 的数字，或留空'); return false;
+    }
+    if (editId && !records.some((entry) => entry.id === editId)) { showToast('这条记录已经不存在'); return false; }
+    const stableTimerId = timerSource == null ? undefined : `timer_${timerSource}`;
+    if (!editId && stableTimerId && records.some((entry) => entry.id === stableTimerId)) {
+      saveSessionTimer(null); setTimerDraft(null); setTimerDraftSource(null);
+      setIsDetailOpen(false); setForceAddMode(false);
+      showToast('这次计时已经保存'); return true;
+    }
+    const isToday = getLocalDateString(new Date(timestamp)) === getLocalDateString(new Date(current));
+    if (!bypassCooldown && isSageModeActive && isToday && !editId) {
+      setPendingSave({ draft: { ...draft, timestamp }, editId, timerSource }); return false;
     }
     const newRecord: RecordEntry = {
-      id: `${Date.now()}_${Math.random().toString(36).slice(2, 11)}`,
-      timestamp: targetDate.getTime(),
-      mood: mood || '放松',
-      note,
-      durationMinutes,
-      watchedMovie,
-      movieCategory: watchedMovie ? movieCategory : undefined,
+      id: editId ?? stableTimerId ?? `${current}_${Math.random().toString(36).slice(2, 11)}`,
+      timestamp, mood: draft.mood || '放松', note: draft.note,
+      durationMinutes: draft.durationMinutes,
+      watchedMovie: draft.watchedMovie ?? false,
+      movieCategory: draft.watchedMovie ? draft.movieCategory : undefined,
     };
-    setRecords(prev => [...prev, newRecord]);
-    const formattedDate = getLocalDateString(targetDate);
-    setStampAnimationDate(formattedDate);
+    const next = editId ? records.map((entry) => entry.id === editId ? newRecord : entry) : [...records, newRecord];
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(next)); }
+    catch { showToast('记录保存失败，请检查存储空间后重试'); return false; }
+    setRecords(next);
+    checkHabitReminders(records, next, newRecord);
+    setStampAnimationDate(getLocalDateString(new Date(timestamp)));
     setTimeout(() => setStampAnimationDate(null), 1500);
-    playPunchSound();
-
-    if (sageModeEnabled) {
-      const cooldownEndAt = Date.now() + sageModeDurationMinutes * 60 * 1000;
-      setSageCooldownEndAt(cooldownEndAt);
-      setNowTs(Date.now());
+    if (!editId) playPunchSound();
+    if (timerSource != null) {
+      saveSessionTimer(null); setTimerDraft(null); setTimerDraftSource(null);
+      setIsDetailOpen(false); setForceAddMode(false);
     }
     return true;
-  }, [isSageModeActive, playPunchSound, sageCountdownLabel, sageModeDurationMinutes, sageModeEnabled, showToast]);
+  }, [records, isSageModeActive, playPunchSound, sageModeDurationMinutes, sageModeEnabled, showToast, checkHabitReminders, saveSessionTimer]);
+
+  const addRecord = useCallback((draft: RecordEntryDraft = {}) => saveRecord(draft), [saveRecord]);
+
+  const openManualRecord = () => {
+    setTimerDraft(null); setTimerDraftSource(null);
+    setSelectedDate(getLocalDateString()); setForceAddMode(true); setIsDetailOpen(true);
+  };
+
+  const finishSessionTimer = () => {
+    const stopped = stopSessionTimer();
+    if (!stopped) return;
+    setTimerDraft(timerToDraft(stopped)); setTimerDraftSource(stopped.startedAt);
+    setSelectedDate(getLocalDateString(new Date(stopped.startedAt))); setForceAddMode(true); setIsDetailOpen(true);
+  };
 
   const circumference = 78 * 2 * Math.PI;
 
@@ -651,10 +686,6 @@ const App: React.FC = () => {
   }, []);
 
   const startPress = useCallback(() => {
-    if (isSageModeActive) {
-      showToast(`贤者模式中，请等待 ${sageCountdownLabel}`);
-      return;
-    }
 
     isLongPressActive.current = false;
     isCurrentlyPressing.current = true;
@@ -687,6 +718,7 @@ const App: React.FC = () => {
       clearTimers();
 
       if (navigator.vibrate) navigator.vibrate(50);
+      setTimerDraft(null); setTimerDraftSource(null);
       setSelectedDate(getLocalDateString());
       setForceAddMode(true);
       setIsDetailOpen(true);
@@ -801,6 +833,8 @@ const App: React.FC = () => {
   };
 
   const handleNativeBack = useCallback(async () => {
+    if (habitReminders.length) { setHabitReminders([]); return; }
+    if (pendingSave) { setPendingSave(null); return; }
     if (showChangeLog) {
       setShowChangeLog(false);
       return;
@@ -847,6 +881,9 @@ const App: React.FC = () => {
     showExportConfirm,
     showNoDataAlert,
     showRemovePinConfirm,
+    habitReminders,
+    pendingSave,
+    setHabitReminders,
   ]);
 
   useEffect(() => {
@@ -880,6 +917,8 @@ const App: React.FC = () => {
     
     // 3. 重置内存中的所有状态到初始值
     setRecords([]);
+    resetHabitTools();
+    setTimerDraft(null); setTimerDraftSource(null); setPendingSave(null);
     setCustomIcon(null);
     setCustomSound(null);
     setCustomBackground(null);
@@ -901,7 +940,7 @@ const App: React.FC = () => {
       setIsClearing(false);
       showToast('所有本地记录已清除');
     }, 200);
-  }, [showToast]);
+  }, [showToast, resetHabitTools]);
 
   const executeExport = async () => {
     if (records.length === 0) {
@@ -1222,11 +1261,15 @@ const App: React.FC = () => {
               }}
           >
             <div className="w-1/3 h-full overflow-y-auto pb-48 px-0 custom-scroll">
+              <HabitDashboard records={records} now={habitNow} timer={sessionTimer}
+                onStart={startSessionTimer} onFinish={finishSessionTimer} onCancel={() => { saveSessionTimer(null); setTimerDraft(null); setTimerDraftSource(null); }}
+                onAdd={openManualRecord} onSettings={() => navigateToView('settings')} />
               <CalendarView 
                 records={records} 
                 onDateClick={(date) => {
                   setSelectedDate(date);
                   setForceAddMode(false);
+                  setTimerDraft(null); setTimerDraftSource(null);
                   setIsDetailOpen(true);
                 }}
                 stampAnimationDate={stampAnimationDate}
@@ -1243,6 +1286,8 @@ const App: React.FC = () => {
             <div className="w-1/3 h-full overflow-y-auto pb-48 px-0 custom-scroll">
               <Suspense fallback={<SettingsViewFallback />}>
                 <LazySettingsView
+                  habitSettings={habitSettings}
+                  onHabitSettingsSave={saveHabitSettings}
                   onClear={() => setShowClearConfirm(true)}
                   records={records}
                   darkMode={darkMode}
@@ -1306,8 +1351,8 @@ const App: React.FC = () => {
         )}
 
         <div
-          className={`fixed bottom-32 left-1/2 -translate-x-1/2 z-30 origin-center ${
-            currentView === 'calendar' && !isDatePickerOpen
+          className={`quick-punch-control fixed bottom-32 left-1/2 -translate-x-1/2 z-30 origin-center ${
+            currentView === 'calendar' && !isDatePickerOpen && !sessionTimer
               ? 'opacity-100 scale-100'
               : 'opacity-0 scale-0 pointer-events-none'
           }`}
@@ -1355,20 +1400,19 @@ const App: React.FC = () => {
               )}
             </div>
             <button 
-              disabled={isSageModeActive}
               onMouseDown={startPress}
               onMouseUp={endPress}
               onMouseLeave={handleCancelPress}
               onTouchStart={(e) => { e.preventDefault(); startPress(); }}
               onTouchEnd={(e) => { e.preventDefault(); endPress(); }}
-              className={`absolute inset-0 z-20 rounded-full outline-none select-none touch-none ${isSageModeActive ? 'cursor-not-allowed opacity-80' : ''}`}
+              className="absolute inset-0 z-20 rounded-full outline-none select-none touch-none"
               aria-label="打卡"
             />
           </div>
           {isSageModeActive && (
             <div className="mt-3 text-center">
               <span className="inline-block px-3 py-1 rounded-full bg-amber-100/90 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 text-xs font-bold">
-                贤者模式中 · 剩余 {sageCountdownLabel}
+                冷却提示 · 剩余 {sageCountdownLabel} · 可继续记录
               </span>
             </div>
           )}
@@ -1444,14 +1488,43 @@ const App: React.FC = () => {
 
         {isDetailOpen && selectedDate && (
           <DetailModal 
+            key={`${selectedDate}-${timerDraftSource ?? 'manual'}`}
             date={selectedDate}
+            allRecords={records}
+            initialDraft={timerDraft ?? undefined}
             records={records.filter(r => getLocalDateString(new Date(r.timestamp)) === selectedDate)}
-            onClose={() => { setIsDetailOpen(false); setForceAddMode(false); }}
-            onDelete={(id) => setRecords(prev => prev.filter(r => r.id !== id))}
-            onAdd={addRecord}
+            onClose={() => { setIsDetailOpen(false); setForceAddMode(false); setTimerDraft(null); setTimerDraftSource(null); }}
+            onDelete={(id) => {
+              const next = records.filter((record) => record.id !== id);
+              try { localStorage.setItem(STORAGE_KEY, JSON.stringify(next)); setRecords(next); }
+              catch { showToast('删除失败，请检查本地存储空间'); }
+            }}
+            onAdd={(draft) => saveRecord(draft, undefined, timerDraftSource ?? undefined)}
+            onUpdate={(id, draft) => saveRecord(draft, id)}
             darkMode={darkMode}
             initialAddMode={forceAddMode}
           />
+        )}
+
+        {pendingSave && (
+          <DataDialog onClose={() => setPendingSave(null)}>
+            {({ isClosing, requestClose }) => (
+              <div className={`${isClosing ? 'data-dialog-sheet-out' : 'data-dialog-sheet'} w-full max-w-xs rounded-[2rem] bg-white p-6 dark:bg-slate-900`} onClick={(event) => event.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="cooldown-title">
+                <h3 id="cooldown-title" className="text-xl font-bold text-gray-900 dark:text-white">当前处于冷却期</h3>
+                <p className="my-4 text-sm leading-relaxed text-gray-500 dark:text-slate-400">还剩 {sageCountdownLabel}。冷却期仅作个人提醒，真实发生的记录仍可保存。</p>
+                <button type="button" onClick={() => requestClose(() => {
+                  if (saveRecord(pendingSave.draft, pendingSave.editId, pendingSave.timerSource, true)) {
+                    setIsDetailOpen(false); setForceAddMode(false);
+                  }
+                })} className="w-full rounded-2xl bg-green-600 py-3 font-bold text-white">仍然记录</button>
+                <button type="button" onClick={() => requestClose()} className="mt-2 w-full rounded-2xl bg-gray-100 py-3 text-gray-600 dark:bg-slate-800 dark:text-slate-300">返回</button>
+              </div>
+            )}
+          </DataDialog>
+        )}
+
+        {habitReminders.length > 0 && !showSplash && !isLocked && !pendingSave && (
+          <HealthReminderDialog reminders={habitReminders} onClose={closeHabitReminders} />
         )}
 
         {showExportConfirm && (

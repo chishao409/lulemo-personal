@@ -1,7 +1,8 @@
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { CustomBackgroundConfig, RecordEntry, WebDavBackupFile, WebDavConfig } from '../types';
+import { CustomBackgroundConfig, RecordEntry, WebDavBackupFile, WebDavConfig, HabitSettings } from '../types';
+import HabitReminderSettings from './HabitReminderSettings';
 import { PIN_KEY, SECURITY_QUESTION_KEY, SECURITY_ANSWER_KEY, SECURITY_QUESTIONS } from '../constants';
 import { hashSecret } from '../utils/secret';
 import { BIOMETRY_LABEL, getBiometricAvailability } from '../utils/biometric';
@@ -22,6 +23,8 @@ type CollapsibleSectionKey = 'security' | 'habit' | 'appearance' | 'data';
 type AlertState = { open: boolean; closing: boolean; title: string; message: string };
 
 interface Props {
+  habitSettings: HabitSettings;
+  onHabitSettingsSave: (value: HabitSettings) => Promise<string>;
   onClear: () => void;
   records: RecordEntry[];
   darkMode: boolean;
@@ -63,6 +66,8 @@ interface Props {
 const COLLAPSIBLE_KEYS: CollapsibleSectionKey[] = ['security', 'habit', 'appearance', 'data'];
 
 const SettingsView: React.FC<Props> = ({
+  habitSettings,
+  onHabitSettingsSave,
   onClear,
   records,
   darkMode,
@@ -161,7 +166,7 @@ const SettingsView: React.FC<Props> = ({
   const sectionKeywords: Record<CollapsibleSectionKey, string[]> = useMemo(
     () => ({
       security: ['安全', '隐私', 'pin', '生物', '解锁', '安全问题', '重置'],
-      habit: ['贤者', '倒计时', '打卡', '音效', '声音', '反馈'],
+      habit: ['贤者', '倒计时', '打卡', '音效', '声音', '反馈', '提醒', '次数', '时长', '间隔', '健康', '通知', '冷却'],
       appearance: ['外观', '主题', '背景', '图标', '深色', '暗黑'],
       data: ['数据', '导入', '导出', '清除', 'csv', '分享', 'webdav', '云备份', '备份', '同步', 'latest', '远程目录', '云端'],
     }),
@@ -846,7 +851,7 @@ const SettingsView: React.FC<Props> = ({
             <h3 className="text-xs font-bold text-green-600 dark:text-green-500 uppercase tracking-wider">打卡行为与反馈</h3>
             <FaIcon name="chevron-down" className={`text-green-500 transition-transform duration-300 ${isSectionOpen('habit') ? 'rotate-180' : ''}`} />
           </button>
-          <div className={getSectionBodyClass(isSectionOpen('habit'))} style={getSectionBodyStyle(isSectionOpen('habit'), 780)}>
+          <div className={getSectionBodyClass(isSectionOpen('habit'))} style={getSectionBodyStyle(isSectionOpen('habit'), 2600)}>
             <div className="px-5 pb-5 space-y-5">
               <div className="space-y-3">
                 <div className="flex justify-between items-center">
@@ -898,7 +903,7 @@ const SettingsView: React.FC<Props> = ({
                   </button>
                 </div>
                 <div className="text-sm text-gray-600 dark:text-slate-400 leading-relaxed">
-                  {sageModeEnabled ? '每次打卡后进入倒计时，倒计时结束前不可再次打卡。' : '贤者模式已关闭，可连续打卡。'}
+                  {sageModeEnabled ? '记录后显示冷却倒计时。冷却期只作提示，仍可选择继续记录。' : '冷却提示已关闭，可连续记录。'}
                 </div>
                 <div className={`overflow-hidden transition-[max-height,opacity,transform] duration-[320ms] ease-[cubic-bezier(0.25,0.1,0.25,1)] ${sageModeEnabled ? 'max-h-[320px] opacity-100 translate-y-0' : 'max-h-0 opacity-0 translate-y-1 pointer-events-none'}`}>
                   <div className={`space-y-3 pt-1 transition-[opacity,transform] duration-[320ms] ease-[cubic-bezier(0.25,0.1,0.25,1)] ${sageModeEnabled ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-1'}`}>
@@ -939,6 +944,12 @@ const SettingsView: React.FC<Props> = ({
               </div>
             </div>
           </div>
+        </div>
+      )}
+
+      {showSection('habit') && (
+        <div className="rounded-[2rem] border border-green-100 bg-white/80 p-5 dark:border-slate-800 dark:bg-slate-900/80">
+          <HabitReminderSettings settings={habitSettings} onSave={onHabitSettingsSave} />
         </div>
       )}
 
@@ -1283,11 +1294,12 @@ const SettingsView: React.FC<Props> = ({
             <div className="pointer-events-none absolute left-6 right-6 top-0 h-px bg-gradient-to-r from-transparent via-white/90 dark:via-slate-300/30 to-transparent"></div>
             <h4 className="font-bold text-green-900 dark:text-green-400 mb-1">关于鹿了么</h4>
             <p className="text-xs text-green-800/60 dark:text-green-400/40 mb-4">
-              <a href="https://github.com/mengkuikun" target="_blank" rel="noopener noreferrer" className="font-semibold hover:text-green-700 dark:hover:text-green-300 transition-colors">
-                版本 1.6.3
+              <a href="https://github.com/chishao409/lulemo-personal" target="_blank" rel="noopener noreferrer" className="font-semibold hover:text-green-700 dark:hover:text-green-300 transition-colors">
+                版本 1.7.0-private.1
               </a>
             </p>
-            <p className="text-xs text-green-800/80 dark:text-green-400/60 leading-relaxed italic px-4">"隐私是我们的最高准则。您的数据永远只会留在您的手机上。"</p>
+            <p className="mb-3 text-xs text-green-800/80 dark:text-green-400/70"><a href="https://github.com/mengkuikun/luleme-app" target="_blank" rel="noopener noreferrer" className="underline underline-offset-4">原作者 mengkuikun 与原项目贡献者 · MIT</a></p>
+            <p className="text-xs text-green-800/80 dark:text-green-400/60 leading-relaxed px-4">记录默认保存在本机，仅在你主动导出或配置 WebDAV 备份时传出。</p>
           </div>
         </div>
       )}

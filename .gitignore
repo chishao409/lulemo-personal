@@ -8,6 +8,10 @@ pnpm-debug.log*
 lerna-debug.log*
 
 node_modules
+release/
+*.jks
+*.keystore
+android/keystore.properties
 dist
 dist-ssr
 *.local
