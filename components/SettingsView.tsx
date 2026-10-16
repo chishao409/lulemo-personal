@@ -1256,19 +1256,19 @@ const SettingsView: React.FC<Props> = ({
       {showAboutSection && (
         <div className="space-y-4">
           <a
-            href="https://lulemo-web.pages.dev/"
+            href="https://github.com/chishao409/lulemo-personal"
             target="_blank"
             rel="noopener noreferrer"
             className="w-full block bg-white/80 dark:bg-slate-900/80 rounded-[2rem] shadow-sm border border-emerald-100 dark:border-slate-800 overflow-hidden hover:shadow-md transition-shadow"
           >
             <div className="p-5 flex items-center justify-between">
-              <div className="flex items-center gap-3">
+              <div className="flex min-w-0 items-center gap-3">
                 <div className="w-10 h-10 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400 rounded-2xl flex items-center justify-center">
                   <FaIcon name="share" />
                 </div>
-                <div className="text-left">
-                  <div className="font-bold text-gray-800 dark:text-slate-200">访问官网</div>
-                  <div className="text-xs text-gray-500 dark:text-slate-400">https://lulemo-web.pages.dev/</div>
+                <div className="min-w-0 text-left">
+                  <div className="font-bold text-gray-800 dark:text-slate-200">访问项目</div>
+                  <div className="break-all text-xs text-gray-500 dark:text-slate-400">github.com/chishao409/lulemo-personal</div>
                 </div>
               </div>
               <FaIcon name="chevron-right" className="text-gray-400 dark:text-slate-600" />
@@ -1295,7 +1295,7 @@ const SettingsView: React.FC<Props> = ({
             <h4 className="font-bold text-green-900 dark:text-green-400 mb-1">关于鹿了么</h4>
             <p className="text-xs text-green-800/60 dark:text-green-400/40 mb-4">
               <a href="https://github.com/chishao409/lulemo-personal" target="_blank" rel="noopener noreferrer" className="font-semibold hover:text-green-700 dark:hover:text-green-300 transition-colors">
-                版本 1.8.0-private.1
+                版本 1.8.1-private.1
               </a>
             </p>
             <p className="mb-3 text-xs text-green-800/80 dark:text-green-400/70"><a href="https://github.com/mengkuikun/luleme-app" target="_blank" rel="noopener noreferrer" className="underline underline-offset-4">原作者 mengkuikun 与原项目贡献者 · MIT</a></p>

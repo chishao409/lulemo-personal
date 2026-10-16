@@ -6,9 +6,9 @@
 
 本仓库由 [chishao409](https://github.com/chishao409) 维护，使用独立私人签名。保留原项目的 [MIT 许可证及版权声明](LICENSE)。
 
-当前版本：`1.8.0-private.1`
+当前版本：`1.8.1-private.1`
 
-[下载安卓安装包](https://github.com/chishao409/lulemo-personal/releases/tag/v1.8.0-private.1) · [详细使用和构建说明](docs/private-release.md) · [原项目](https://github.com/mengkuikun/luleme-app)
+[下载安卓安装包](https://github.com/chishao409/lulemo-personal/releases/tag/v1.8.1-private.1) · [详细使用和构建说明](docs/private-release.md) · [原项目](https://github.com/mengkuikun/luleme-app)
 
 ## 相较原版增加了什么
 
@@ -76,7 +76,7 @@
 
 ## 安装与旧数据迁移
 
-**已安装本仓库 1.7.0-private.1 的用户：先备份，再直接覆盖安装 1.8.0-private.1，无需卸载；本次沿用同一私人签名并递增版本号。**
+**已安装本仓库旧版私人版的用户：先备份，再直接覆盖安装 1.8.1-private.1，无需卸载；本次沿用同一私人签名并递增版本号。**
 
 首次使用私人版，请按以下顺序操作：
 

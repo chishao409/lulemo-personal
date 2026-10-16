@@ -32,6 +32,15 @@ const ChangeLog: React.FC<Props> = ({ onClose, darkMode }) => {
 
   const changes = [
     {
+      version: '1.8.1-private.1',
+      date: '2026-10-16',
+      title: '私人版 · 项目入口更新',
+      items: [
+        '✨ 优化：设置页“访问官网”改为“访问项目”，链接到本私人版 GitHub 仓库',
+        '✨ 优化：较长项目地址在窄屏下自动换行显示',
+      ],
+    },
+    {
       version: '1.8.0-private.1',
       date: '2026-10-16',
       title: '私人版 · 日周月总结与多维统计',
